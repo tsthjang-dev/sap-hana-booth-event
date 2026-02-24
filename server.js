@@ -7,7 +7,8 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const app = express();
 const PORT = process.env.PORT || 4010;
-const DB_PATH = path.join(__dirname, 'data.json');
+const DB_PATH = process.env.DB_PATH || path.join(__dirname, 'data.json');
+let memoryDB = { teams: [] };
 
 app.use(express.json({ limit: '1mb' }));
 app.use(express.static(path.join(__dirname, 'public')));
@@ -41,10 +42,23 @@ const BOOTHS = {
 };
 
 function loadDB() {
-  if (!fs.existsSync(DB_PATH)) return { teams: [] };
-  try { return JSON.parse(fs.readFileSync(DB_PATH, 'utf8')); } catch { return { teams: [] }; }
+  try {
+    if (!fs.existsSync(DB_PATH)) return memoryDB;
+    const db = JSON.parse(fs.readFileSync(DB_PATH, 'utf8'));
+    memoryDB = db;
+    return db;
+  } catch {
+    return memoryDB;
+  }
 }
-function saveDB(db) { fs.writeFileSync(DB_PATH, JSON.stringify(db, null, 2)); }
+function saveDB(db) {
+  memoryDB = db;
+  try {
+    fs.writeFileSync(DB_PATH, JSON.stringify(db, null, 2));
+  } catch {
+    // serverless/read-only 환경에서는 메모리 모드로 동작
+  }
+}
 const keyOf = (v) => String(v || '').trim().toLowerCase();
 const now = () => new Date().toISOString();
 function durationSec(startedAt, completedAt) { return Math.max(0, Math.floor((new Date(completedAt) - new Date(startedAt)) / 1000)); }
@@ -179,4 +193,8 @@ app.get('/api/admin/summary', (_req, res) => {
   res.json({ teams, feedbacks });
 });
 
-app.listen(PORT, () => console.log(`event-booth-app running on http://localhost:${PORT}`));
+if (process.env.VERCEL !== '1') {
+  app.listen(PORT, () => console.log(`event-booth-app running on http://localhost:${PORT}`));
+}
+
+export default app;
