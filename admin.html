@@ -1,0 +1,20 @@
+<!doctype html><html lang='ko'><head><meta charset='UTF-8'/><meta name='viewport' content='width=device-width,initial-scale=1.0'/><title>Admin</title>
+<style>
+body{margin:0;font-family:Inter,system-ui;background:linear-gradient(145deg,#faf7ff,#eef9ff);color:#3f385a}
+.wrap{max-width:1040px;margin:0 auto;padding:16px}.top a{color:#5c53a6;text-decoration:none;padding:7px 11px;border:1px solid #e7deff;border-radius:999px;background:#fff;margin-right:8px}
+.card{background:#fff;border:1px solid #eadfff;border-radius:14px;padding:12px;margin-top:10px}
+table{width:100%;border-collapse:collapse}th,td{border-bottom:1px solid #f1eaff;padding:8px;text-align:left;font-size:13px}
+button{border:0;background:#7f6df1;color:#fff;padding:8px 12px;border-radius:10px;cursor:pointer}
+</style>
+</head><body><div class='wrap'>
+<div class='top'><a href='/'>메인</a><a href='/teams.html'>팀목록</a></div>
+<h1 style='margin:8px 0 0'>관리자</h1>
+<div class='card'><button onclick='load()'>새로고침</button></div>
+<div class='card'><h3 style='margin:0 0 8px'>팀 상태</h3><table><thead><tr><th>팀</th><th>부스 진행</th><th>상태</th><th>시작</th><th>완료</th></tr></thead><tbody id='tb'></tbody></table></div>
+<div class='card'><h3 style='margin:0 0 8px'>피드백</h3><table><thead><tr><th>팀</th><th>만족도</th><th>행사 피드백</th><th>팀에 바라는 점</th></tr></thead><tbody id='fb'></tbody></table></div>
+</div><script>
+async function load(){const r=await fetch('/api/admin/summary');const d=await r.json();tb.innerHTML='';fb.innerHTML='';d.teams.forEach(t=>{const booths=[1,2,3,4,5].map(b=>t.booths?.[b]?.passed?'✅':'·').join(' ');const tr=document.createElement('tr');tr.innerHTML=`<td>${t.teamName}</td><td>${booths}</td><td>${t.status}</td><td>${(t.startedAt||'').slice(11,19)}</td><td>${(t.completedAt||'').slice(11,19)}</td>`;tb.appendChild(tr);});
+if(!d.feedbacks.length){fb.innerHTML='<tr><td colspan="4">피드백 없음</td></tr>'}
+d.feedbacks.forEach(f=>{const tr=document.createElement('tr');tr.innerHTML=`<td>${f.teamName}</td><td>${f.rating||''}</td><td>${f.eventFeedback||''}</td><td>${f.teamWish||''}</td>`;fb.appendChild(tr);});}
+load();
+</script></body></html>

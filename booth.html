@@ -1,0 +1,91 @@
+<!doctype html>
+<html lang="ko"><head>
+<meta charset="UTF-8"/><meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>Booth</title>
+<style>
+body{margin:0;font-family:Inter,system-ui;background:linear-gradient(145deg,#faf7ff,#eef9ff);color:#342f4d}
+.wrap{max-width:1040px;margin:0 auto;padding:16px}.top{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px}.top a{color:#5c53a6;text-decoration:none;padding:7px 11px;border:1px solid #e7deff;border-radius:999px;background:#fff}
+.card{background:#fff;border:1px solid #eadfff;border-radius:16px;padding:14px}
+h1{margin:0;font-size:28px}.meta{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:8px 0}
+.badge{padding:6px 10px;border-radius:999px;background:#f2edff;border:1px solid #ded3ff;font-size:13px}
+.progress{display:flex;gap:6px;margin:8px 0 12px}.dot{width:25px;height:25px;border-radius:999px;display:grid;place-items:center;background:#f2edff;border:1px solid #e0d5ff;font-size:12px}.dot.ok{background:#d6f7eb;border-color:#97e0c8}
+.choice{display:block;width:100%;padding:12px;border:1px solid #ddd4f6;background:#faf8ff;border-radius:11px;text-align:left;margin-top:8px;cursor:pointer;color:#342f4d;font-weight:600}
+.hint{margin:6px 0 10px;padding:8px 10px;border-radius:10px;background:#f8fbff;border:1px dashed #c4dff7;color:#4b6884;font-size:13px}
+.order-item{display:flex;gap:10px;align-items:center;padding:10px;border:1px solid #ddd1ff;background:#f8f4ff;border-radius:10px;margin:8px 0;cursor:move}
+.order-item img{width:34px;height:34px;border-radius:8px;background:#fff;border:1px solid #ddd}
+button{border:0;background:#7f6df1;color:#fff;border-radius:11px;padding:10px 13px;cursor:pointer;font-weight:700}
+#msg{min-height:20px;color:#5f5882;font-size:14px}
+</style></head>
+<body><div class='wrap'>
+<div class='top'><a href='/'>메인</a><a href='/teams.html'>팀목록</a><a href='/admin.html'>관리자</a></div>
+<div class='card'>
+  <h1 id='title'>Booth</h1>
+  <div class='meta'><span class='badge' id='teamName'></span><span class='badge' id='status'></span></div>
+  <div id='prog' class='progress'></div>
+  <div id='qArea'></div>
+  <p id='msg'></p>
+</div></div>
+<script>
+const params=new URLSearchParams(location.search);
+const boothNo=Number(params.get('booth')||1);
+let teamKey=params.get('team')||localStorage.getItem('selectedTeamKey');
+let state=null;
+
+title.textContent=`Booth ${boothNo}`;
+function shuffle(a){return [...a].sort(()=>Math.random()-0.5)}
+function drawSolved(arr){prog.innerHTML=arr.map((v,i)=>`<div class='dot ${v?'ok':''}'>${i+1}</div>`).join('');}
+function iconByIndex(i){return `/assets/order-${(i%4)+1}.svg`;}
+
+async function loadState(){
+  if(!teamKey){ qArea.innerHTML='<p>팀을 먼저 선택하세요.</p><a href="/teams.html">팀 목록 이동</a>'; return; }
+  localStorage.setItem('selectedTeamKey', teamKey);
+  const r=await fetch(`/api/booth/${boothNo}/state/${encodeURIComponent(teamKey)}`);
+  const d=await r.json();
+  if(!r.ok){ qArea.innerHTML=`<p>${d.error||'오류'}</p>`; return; }
+  state=d;
+  teamName.textContent=`팀 ${d.team.teamName}`;
+  status.textContent=d.passed?'완료':'진행중';
+  drawSolved(d.solved);
+  renderQuestion();
+}
+
+function renderQuestion(){
+  if(state.passed){
+    qArea.innerHTML=`<button id='doneBtn'>완료하고 팀목록으로</button>`;
+    document.getElementById('doneBtn').onclick=()=>location.href='/teams.html';
+    return;
+  }
+  const q=state.question, idx=state.currentQuestionIndex;
+  if(q.type==='choice'){
+    qArea.innerHTML=`<h3>Q${idx+1}. ${q.prompt}</h3><div class='hint'>Hint: ${q.hint||'-'}</div><div id='choices'></div>`;
+    const c=document.getElementById('choices');
+    shuffle(q.options).forEach(opt=>{const b=document.createElement('button');b.className='choice';b.textContent=opt;b.onclick=()=>submit({teamKey,questionIndex:idx,choice:opt});c.appendChild(b);});
+  } else {
+    qArea.innerHTML=`<h3>Q${idx+1}. ${q.prompt}</h3><div class='hint'>Hint: ${q.hint||'-'}</div><div id='box'></div><button id='send'>순서 제출</button>`;
+    const box=document.getElementById('box');
+    shuffle(q.items).forEach((it,i)=>{const d=document.createElement('div');d.className='order-item';d.draggable=true;d.innerHTML=`<img src='${iconByIndex(i)}' alt='icon'/><span>${it}</span>`;box.appendChild(d)});
+    enableDrag(box);
+    document.getElementById('send').onclick=()=>submit({teamKey,questionIndex:idx,order:[...box.children].map(x=>x.querySelector('span').textContent)});
+  }
+}
+
+function enableDrag(box){
+  let drag=null;
+  [...box.children].forEach(el=>{
+    el.addEventListener('dragstart',()=>drag=el);
+    el.addEventListener('dragover',e=>e.preventDefault());
+    el.addEventListener('drop',e=>{e.preventDefault();if(!drag||drag===el)return;const arr=[...box.children];const di=arr.indexOf(drag),ti=arr.indexOf(el);if(di<ti)box.insertBefore(drag,el.nextSibling);else box.insertBefore(drag,el);});
+  });
+}
+
+async function submit(payload){
+  const r=await fetch(`/api/booth/${boothNo}/answer`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
+  const d=await r.json();
+  msg.textContent=r.ok?'정답입니다':'오답입니다';
+  if(!r.ok && d.error) msg.textContent=d.error;
+  await loadState();
+}
+
+loadState();
+</script>
+</body></html>
