@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="ko"><head>
+<meta charset="UTF-8"/><meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>팀 목록</title>
+<style>
+body{margin:0;font-family:Inter,system-ui;background:linear-gradient(145deg,#faf7ff,#eef9ff);color:#3d3757}
+.wrap{max-width:1040px;margin:0 auto;padding:16px}.top{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px}.top a{color:#5c53a6;text-decoration:none;padding:7px 11px;border:1px solid #e7deff;border-radius:999px;background:#fff}
+h1{margin:0 0 10px;font-size:28px}
+.grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+.card{background:#fff;border:1px solid #eadfff;border-radius:14px;padding:12px}
+.name{font-size:18px;font-weight:700}.state{font-size:13px;color:#6e678f}
+.prog{margin-top:8px;display:flex;gap:5px}.dot{width:22px;height:22px;border-radius:999px;display:grid;place-items:center;background:#f2edff;border:1px solid #e0d5ff;font-size:11px}.dot.ok{background:#d6f7eb;border-color:#96e0c8}
+button{border:0;border-radius:10px;padding:9px 12px;cursor:pointer;font-weight:700;margin-top:9px;background:#7f6df1;color:#fff}
+.list{background:#fff;border:1px solid #eadfff;border-radius:14px;padding:12px;margin-top:12px} table{width:100%;border-collapse:collapse}th,td{padding:8px;border-bottom:1px solid #f2ebff;text-align:left;font-size:13px}
+.empty{padding:10px;border:1px dashed #ddd1ff;border-radius:10px;color:#756f95;text-align:center;font-size:13px}
+@media (max-width:860px){.grid{grid-template-columns:1fr}}
+</style></head>
+<body><div class='wrap'>
+<div class='top'><a href='/'>메인</a><a href='/admin.html'>관리자</a></div>
+<h1>팀 진행 현황</h1>
+<div id='activeGrid' class='grid'></div>
+<div class='list'>
+  <h3 style='margin:0 0 8px'>Completed Teams</h3>
+  <table><thead><tr><th>순위</th><th>팀</th><th>완료시간(초)</th></tr></thead><tbody id='doneTb'></tbody></table>
+</div>
+</div>
+<script>
+function nextBooth(t){for(let i=1;i<=5;i++) if(!t.booths?.[i]?.passed) return i; return null;}
+function progressHtml(t){return [1,2,3,4,5].map(b=>`<div class='dot ${t.booths?.[b]?.passed?'ok':''}'>${b}</div>`).join('');}
+async function load(){
+  const [tRes,rRes]=await Promise.all([fetch('/api/teams'), fetch('/api/ranking')]);
+  const d=await tRes.json(); const rk=await rRes.json();
+  activeGrid.innerHTML='';
+  const active = d.teams.filter(t=>t.status!=='completed');
+  if(!active.length){activeGrid.innerHTML='<div class="empty">현재 진행 중인 팀이 없습니다</div>'}
+  active.forEach(t=>{
+    const n=nextBooth(t); const el=document.createElement('div'); el.className='card';
+    el.innerHTML=`<div class='name'>${t.teamName}</div><div class='state'>${(t.members||[]).join(', ')||'-'}</div><div class='prog'>${progressHtml(t)}</div><button data-k='${t.teamKey}' data-b='${n}'>다음 단계 시작 (Booth ${n})</button>`;
+    activeGrid.appendChild(el);
+  });
+  activeGrid.querySelectorAll('button').forEach(b=>b.onclick=()=>{localStorage.setItem('selectedTeamKey', b.dataset.k); location.href=`/booth.html?booth=${b.dataset.b}&team=${encodeURIComponent(b.dataset.k)}`;});
+
+  doneTb.innerHTML='';
+  if(!rk.ranking.length){doneTb.innerHTML='<tr><td colspan="3" class="empty">완료팀 없음</td></tr>'}
+  rk.ranking.forEach((x,i)=>{const tr=document.createElement('tr'); tr.innerHTML=`<td>#${i+1}</td><td>${x.teamName}</td><td>${x.durationSec}</td>`; doneTb.appendChild(tr);});
+}
+load();
+</script>
+</body></html>
